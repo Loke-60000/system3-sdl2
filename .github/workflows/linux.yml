@@ -1,27 +1,52 @@
-name: Linux Build
-on: [push, pull_request]
+name: Linux Release Build
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        build-type: ["Debug", "Release"]
 
-    name: Linux ${{ matrix.build-type }}
+    name: Linux Release
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
 
-    - name: Install Deps
-      run: |
-        sudo apt update
-        sudo apt install libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev librtmidi-dev nlohmann-json3-dev
+      - name: Install Deps
+        run: |
+          sudo apt update
+          sudo apt install -y libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev librtmidi-dev nlohmann-json3-dev
 
-    - name: Build
-      run: |
-        mkdir -p out/${{ matrix.build-type }}
-        cd out/${{ matrix.build-type }}
-        cmake -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} ../../
-        make -j4
+      - name: Build
+        run: |
+          cmake -S . -B out/release -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/release --parallel
+
+      - name: Package release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir -p dist
+          cp out/release/system3 COPYING.txt dist/
+          tar -C dist -czf system3-linux-release.tar.gz system3 COPYING.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: system3-linux-release
+          path: out/release/system3
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: system3-linux-release.tar.gz
+          generate_release_notes: true

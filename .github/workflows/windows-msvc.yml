@@ -1,5 +1,6 @@
 name: Windows (MSVS) Build
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -14,23 +15,22 @@ jobs:
             package: "system3-sdl2-msvc-64bit"
     name: MSVS ${{ matrix.arch }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
+      - name: Build
+        run: |
+          mkdir out
+          cd out
+          cmake -G "Visual Studio 17 2022" -A ${{ matrix.arch }} -DCMAKE_COMPILE_WARNING_AS_ERROR=YES ../
+          cmake --build . --config Release
+          cmake --install . --prefix artifacts
+          cp ../COPYING.txt artifacts/
 
-    - name: Build
-      run: |
-        mkdir out
-        cd out
-        cmake -G "Visual Studio 17 2022" -A ${{ matrix.arch }} -DCMAKE_COMPILE_WARNING_AS_ERROR=YES ../
-        cmake --build . --config Release
-        cmake --install . --prefix artifacts
-        cp ../COPYING.txt artifacts/
-
-    - name: Upload
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.package }}
-        path: out/artifacts
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: out/artifacts
