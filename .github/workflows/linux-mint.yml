@@ -1,0 +1,47 @@
+name: Linux Mint Build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build-type: [Debug, Release]
+
+    name: Linux Mint ${{ matrix.build-type }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build in Linux Mint container
+        run: |
+          docker pull linuxmintd/mint22.1-amd64:latest
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            linuxmintd/mint22.1-amd64:latest \
+            bash -lc '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential \
+                cmake \
+                pkg-config \
+                libsdl2-dev \
+                libsdl2-ttf-dev \
+                libsdl2-mixer-dev \
+                librtmidi-dev \
+                nlohmann-json3-dev
+              cmake -S . -B out/${{ matrix.build-type }} -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+              cmake --build out/${{ matrix.build-type }} --parallel
+            '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: system3-linux-mint-${{ matrix.build-type }}
+          path: out/${{ matrix.build-type }}/system3
+          if-no-files-found: error
