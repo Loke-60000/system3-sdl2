@@ -1,5 +1,6 @@
 name: Windows Build
-on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,45 +20,44 @@ jobs:
         shell: msys2 {0}
     name: MSYS2 ${{ matrix.sys }}
     steps:
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.sys }}
+          pacboy: >-
+            SDL2:p
+            SDL2_ttf:p
+            rtmidi:p
+            ${{ matrix.deps }}
 
-    - name: Set up MSYS2
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: ${{ matrix.sys }}
-        pacboy: >-
-          SDL2:p
-          SDL2_ttf:p
-          rtmidi:p
-          ${{ matrix.deps }}
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
 
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: true
+      - name: Copy licenses
+        run: |
+          ls /${{ matrix.sys }}/share/licenses
+          mkdir dist
+          cp -r /${{ matrix.sys }}/share/licenses dist/
+          cp resources/fonts/*.license dist/licenses/
+          cp deps/ymfm/LICENSE dist/licenses/ymfm.license
 
-    - name: Copy licenses
-      run: |
-        ls /${{ matrix.sys }}/share/licenses
-        mkdir dist
-        cp -r /${{ matrix.sys }}/share/licenses dist/
-        cp resources/fonts/*.license dist/licenses/
-        cp deps/ymfm/LICENSE dist/licenses/ymfm.license
+      - name: Install dev dependencies
+        run: pacboy --noconfirm -S --needed gcc:p cmake:p ninja:p
 
-    - name: Install dev dependencies
-      run: pacboy --noconfirm -S --needed gcc:p cmake:p ninja:p
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_COMPILE_WARNING_AS_ERROR=YES
+          cmake --build build
 
-    - name: Build
-      run: |
-        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_COMPILE_WARNING_AS_ERROR=YES
-        cmake --build build
+      - name: Package
+        run: |
+          cp build/system3.exe COPYING.txt dist/
 
-    - name: Package
-      run: |
-        cp build/system3.exe COPYING.txt dist/
-
-    - name: Upload
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.package }}
-        path: dist
-        compression-level: 9  # because we use it for releases
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: dist
+          compression-level: 9 # because we use it for releases
